@@ -52,13 +52,26 @@ class Portal:
             locale="en-CA", timezone_id="America/Edmonton")
         return browser, ctx.new_page()
 
-    def login(self, page: Page) -> None:
-        log.info("%s: opening login page", self.name)
-        page.goto(self.login_url, wait_until="networkidle", timeout=60_000)
-        page.fill(self.user_sel, self.username)
-        page.fill(self.pass_sel, self.password)
-        page.click(self.submit_sel)
-        page.wait_for_load_state("networkidle", timeout=60_000)
+    @staticmethod
+    def _settle(page: Page, seconds: int = 15) -> None:
+        """Wait for the page to quiet down, but don't fail on sites that never go idle."""
+        try:
+            page.wait_for_load_state("networkidle", timeout=seconds * 1000)
+        except Exception:
+            pass
+
+    def login(self, page: Page, already_open: bool = False) -> None:
+        if not already_open:
+            log.info("%s: opening login page", self.name)
+            page.goto(self.login_url, wait_until="domcontentloaded", timeout=60_000)
+            self._settle(page)
+        log.info("%s: looking for the login form", self.name)
+        page.locator(self.pass_sel).first.wait_for(state="visible", timeout=30_000)
+        page.locator(self.user_sel).first.fill(self.username)
+        page.locator(self.pass_sel).first.fill(self.password)
+        log.info("%s: submitting login", self.name)
+        page.locator(self.submit_sel).first.click()
+        self._settle(page, 20)
         if page.locator(self.pass_sel).count() and page.locator(self.pass_sel).first.is_visible():
             raise RuntimeError(f"{self.name}: still on the login form after submitting; "
                                "check the username/password or the selectors in .env")
@@ -71,10 +84,15 @@ class Portal:
             browser, page = self._open(pw)
             page.on("response", self._save_json)
             try:
-                page.goto(self.login_url, wait_until="networkidle", timeout=60_000)
+                log.info("%s: opening login page", self.name)
+                page.goto(self.login_url, wait_until="domcontentloaded", timeout=60_000)
+                self._settle(page)
                 self._snapshot(page, "00-login")
-                self.login(page)
-                self._snapshot(page, "01-after-login")
+                try:
+                    self.login(page, already_open=True)
+                finally:
+                    self._snapshot(page, "01-after-login")
+                log.info("%s: looking for bill and usage pages", self.name)
                 self._crawl(page)
             finally:
                 browser.close()
@@ -97,7 +115,7 @@ class Portal:
                 break
             try:
                 page.get_by_text(text, exact=True).first.click(timeout=5000)
-                page.wait_for_load_state("networkidle", timeout=30_000)
+                self._settle(page)
             except Exception as e:
                 log.debug("skip %r: %s", text, e)
                 continue
@@ -106,8 +124,12 @@ class Portal:
             n += 1
 
     def _snapshot(self, page: Page, label: str) -> None:
+        log.info("%s: saving page %s", self.name, label)
         (self.capture_dir / f"{label}.html").write_text(page.content(), encoding="utf-8")
-        page.screenshot(path=str(self.capture_dir / f"{label}.png"), full_page=True)
+        try:
+            page.screenshot(path=str(self.capture_dir / f"{label}.png"), full_page=True, timeout=30_000)
+        except Exception as e:
+            log.warning("%s: screenshot of %s failed: %s", self.name, label, e)
         for i, frame in enumerate(page.frames[1:], 1):
             try:
                 (self.capture_dir / f"{label}.frame{i}.html").write_text(frame.content(), encoding="utf-8")
