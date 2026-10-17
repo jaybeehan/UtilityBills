@@ -14,12 +14,16 @@ and the summary formulas in E:I stay put. A bill already in the sheet is matched
 |---|---|
 | Google Sheet writer | Done and tested |
 | Image build + Container Manager setup | Done |
-| Portal logins | Lacombe uses standard DotNetNuke IDs; Echo uses best guesses |
-| Bill readers | **Waiting on the capture files** (Part 1) |
+| Portal logins | Both working |
+| Bill readers | Done: Echo reads the Monthly Invoices table on the Electricity and Gas tabs; Lacombe reads the Transactions list |
+
+**Water usage:** Lacombe doesn't list m³ directly. The wastewater treatment charge is billed per m³,
+so usage = that charge ÷ `SEWER_RATE` ($3.00 in 2026, matching every month in the sheet).
+If the city changes the rate (usually in January), update `SEWER_RATE` in the project settings.
 
 ---
 
-## Part 1: Capture run (do this now, from your phone)
+## Part 1: Capture run (done; only needed again if a site changes)
 
 This logs into both sites once and saves what it sees, so the bill readers can be written.
 It only clicks links with words like *bill*, *usage* or *history*, and never anything with
@@ -51,7 +55,7 @@ It only clicks links with words like *bill*, *usage* or *history*, and never any
 
    You can look through the `.png` screenshots first to check nothing unexpected is in there.
 
-## Part 2: Google access (after Claude has added the bill readers)
+## Part 2: Google access
 
 The app writes to your sheet with a Google "service account", a robot account with no
 password, that can only touch files you share with it. Easiest from your work computer,

@@ -18,6 +18,7 @@ services:
       DRY_RUN: "true"            # "true" = only log what it would add to the sheet
       RUN_HOUR: "7"
       SHEET_ID: "1bo1mBDDxPsKPg5e8BMskq0rOWWfD4Ye9cG4zSN3-KQY"
+      SEWER_RATE: "3.00"         # Lacombe wastewater $/m3; usage = treatment charge / this
 
       ECHO_USERNAME: ""          # CHANGE: your Echo Energy login
       ECHO_PASSWORD: ""          # CHANGE
