@@ -1,0 +1,9 @@
+services:
+  utility-sync:
+    build: .
+    container_name: utility-sync
+    env_file: .env
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+    shm_size: "1gb"
