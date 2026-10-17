@@ -10,10 +10,10 @@ class EchoPortal(Portal):
     name = "echo"
     env_prefix = "ECHO"
     login_url = "https://www.echoenergy.ca/myretailer/portal/index.html"
-    # Best guesses until the capture shows the real form; override in .env if login fails.
-    user_sel = "input[type=email], input[name*=user i], input[id*=user i], input[name*=email i]"
-    pass_sel = "input[type=password]"
-    submit_sel = "button[type=submit], input[type=submit], button:has-text('Log')"
+    # From the captured login page (GWT app; the button is a plain "Go" button).
+    user_sel = "#userName"
+    pass_sel = "#password"
+    submit_sel = "button.gapps-loginButton"
 
     def read_bills(self, page: Page) -> dict:
         """Return {"electricity": [Bill...], "gas": [Bill...]}.

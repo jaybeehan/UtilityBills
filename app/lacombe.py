@@ -14,6 +14,11 @@ class LacombePortal(Portal):
     user_sel = "input[id$='txtUsername']"
     pass_sel = "input[id$='txtPassword']"
     submit_sel = "a[id$='cmdLogin'], input[id$='cmdLogin']"
+    # Both "Utility Billing" links from the logged-in home page.
+    start_urls = (
+        "https://onlineservices.lacombe.ca/vadimopen/LinkClick.aspx?link=86&tabid=55&portalid=0&mid=421",
+        "https://onlineservices.lacombe.ca/OnlineServices/UtilityBilling.aspx",
+    )
 
     def read_bills(self, page: Page) -> dict:
         """Return {"water": [Bill...]}.
