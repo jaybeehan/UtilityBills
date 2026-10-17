@@ -82,11 +82,13 @@ class Portal:
         page.locator(self.pass_sel).first.fill(self.password)
         log.info("%s: submitting login", self.name)
         page.locator(self.submit_sel).first.click(timeout=15_000)
+        # Wait for the login form to go away; some sites take several seconds.
+        try:
+            page.locator(self.pass_sel).first.wait_for(state="hidden", timeout=45_000)
+        except Exception:
+            raise RuntimeError(f"{self.name}: still on the login form 45 s after submitting; "
+                               "check the username/password") from None
         self._settle(page, 20)
-        pw_box = page.locator(self.pass_sel)
-        if pw_box.count() and pw_box.first.is_visible():
-            raise RuntimeError(f"{self.name}: still on the login form after submitting; "
-                               "check the username/password")
         log.info("%s: logged in, now at %s", self.name, page.url)
 
     # --- capture mode ----------------------------------------------------
