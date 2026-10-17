@@ -11,11 +11,11 @@ services:
       - ./data:/data             # captures, log and Google key live here
     environment:
       TZ: "America/Edmonton"
-      # capture = log in once and save the bill pages (do this first)
-      # once    = test one sync, then stop
       # sync    = normal: check every day at RUN_HOUR
-      MODE: "capture"
-      DRY_RUN: "true"            # "true" = only log what it would add to the sheet
+      # once    = test one sync, then stop
+      # capture = log in once and save the bill pages (only if a site changes)
+      MODE: "sync"
+      DRY_RUN: "false"           # "true" = only log what it would add to the sheet
       RUN_HOUR: "7"
       SHEET_ID: "1bo1mBDDxPsKPg5e8BMskq0rOWWfD4Ye9cG4zSN3-KQY"
       SEWER_RATE: "3.00"         # Lacombe wastewater $/m3; usage = treatment charge / this
