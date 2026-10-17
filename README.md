@@ -1,58 +1,79 @@
-# utility-sync
+# UtilityBills
 
 Logs into Echo Energy (electricity + gas) and City of Lacombe online services (water),
 reads the bill history, and adds any missing bills to the **Lacombe Utilities** Google Sheet.
-Runs in Docker on the Synology, once a day.
+Runs in Container Manager on the Synology, once a day.
 
 The sheet layout is respected: newest bill in row 2, only columns A:D are shifted down,
-and the summary formulas in E:I (including the 12-month averages in I2/I3) stay put.
-A bill already in the sheet is matched by date (within 6 days); if its usage cell is blank,
-the usage gets filled in.
+and the summary formulas in E:I stay put. A bill already in the sheet is matched by date
+(within 6 days); if its usage cell is blank, the usage gets filled in.
 
 ## Status
 
 | Part | State |
 |---|---|
 | Google Sheet writer | Done and tested |
-| Docker / schedule | Done |
-| Portal login | Lacombe uses standard DotNetNuke IDs; Echo uses best guesses |
-| Bill parsers | **Waiting on capture files** (step 4) |
+| Image build + Container Manager setup | Done |
+| Portal logins | Lacombe uses standard DotNetNuke IDs; Echo uses best guesses |
+| Bill readers | **Waiting on the capture files** (Part 1) |
 
-## Setup on the Synology
+---
 
-1. **Copy the folder** to the NAS, e.g. `/volume1/docker/utility-sync`, or push it to a
-   private GitHub repo and clone it there.
+## Part 1: Capture run (do this now, from your phone)
 
-2. **Google service account** (lets the app write to the sheet, no Google password stored):
-   - console.cloud.google.com → new project → enable **Google Sheets API**
-   - IAM & Admin → Service Accounts → Create → Keys → Add key → JSON
-   - Save the file as `data/service-account.json`
-   - Open the Lacombe Utilities sheet → Share → add the service account's email
-     (ends in `iam.gserviceaccount.com`) as **Editor**
+This logs into both sites once and saves what it sees, so the bill readers can be written.
+It only clicks links with words like *bill*, *usage* or *history*, and never anything with
+*pay*, *change*, *cancel*, *log out* and similar.
 
-3. **Credentials**: `cp .env.example .env` and fill in both portal logins.
-   `.env` and `data/` are git-ignored. Lock them down: `chmod 600 .env`.
+1. **Make the image public (one time).** After the first GitHub build finishes
+   (repo → **Actions** tab, green check, a few minutes):
+   GitHub → your profile → **Packages** → `utilitybills` → **Package settings** →
+   **Change visibility** → **Public**. The image contains no passwords.
 
-4. **Capture run** (logs in once, clicks only bill/usage/history links, never anything
-   like Pay, Change, Cancel or Log out):
-   ```
-   docker compose build
-   docker compose run --rm -e MODE=capture utility-sync
-   ```
-   Results land in `data/capture/echo/` and `data/capture/lacombe/`
-   (HTML, screenshots, and any JSON the sites loaded).
-   Check the screenshots look right, then zip both folders and send them to Claude.
-   Account numbers can be blacked out first; the parser only needs the page structure.
+2. **Make the folders.** In DS File or File Station, inside the `docker` shared folder,
+   create `utility-bills`, and inside that an empty folder named `data`.
 
-   If login fails, the log says so. Open `00-login.png` / `00-login.html`, find the
-   field IDs, and set the `*_SELECTOR` lines in `.env`.
+3. **Create the project.** DSM → **Container Manager → Project → Create**
+   - Project name: `utility-bills`
+   - Path: `/docker/utility-bills`
+   - Source: **Create docker-compose.yml**, paste in [`docker-compose.yml`](docker-compose.yml)
+   - Fill in the four `CHANGE` lines with your Echo and Lacombe logins. Leave `MODE: "capture"`.
+   - **Next → Done**. The first download is large (it includes a browser), allow a few minutes.
 
-5. **After the parsers are added**, test without writing:
-   ```
-   docker compose run --rm -e MODE=once -e DRY_RUN=true utility-sync
-   ```
-   The log lists what it would add. When it looks right, set `DRY_RUN=false` in `.env` and
-   ```
-   docker compose up -d
-   ```
-   It syncs immediately, then daily at `RUN_HOUR` (default 7 am). Log: `data/utility-sync.log`.
+4. **Wait for it to finish.** Container Manager → **Container** → `utility-bills` → **Log**.
+   When you see **CAPTURE FINISHED**, go to **Project → utility-bills → Stop**.
+   If you see *still on the login form*, the username or password is wrong, or the site's
+   login form needs different settings; send the log text to Claude.
+
+5. **Send the files.** In File Station, go to `docker/utility-bills/data`,
+   select the `capture` folder → **Compress** (zip) → download the zip → attach it in the
+   Claude chat. From DS File on the phone: long-press the zip → **Download** or **Share**.
+
+   You can look through the `.png` screenshots first to check nothing unexpected is in there.
+
+## Part 2: Google access (after Claude has added the bill readers)
+
+The app writes to your sheet with a Google "service account", a robot account with no
+password, that can only touch files you share with it. Easiest from your work computer,
+but it works on the phone with the browser in desktop mode.
+
+1. Go to **console.cloud.google.com** → project menu → **New project** → name it `utility-bills`.
+2. Search **Google Sheets API** → **Enable**.
+3. **IAM & Admin → Service Accounts → Create service account** → name `utility-bills` → **Done**.
+4. Tap the new account → **Keys → Add key → Create new key → JSON**. A file downloads.
+5. Rename it `service-account.json` and put it in `docker/utility-bills/data` on the NAS.
+6. Copy the service account's email (ends in `iam.gserviceaccount.com`). Open the
+   Lacombe Utilities sheet → **Share** → paste it → **Editor** → uncheck *Notify* → **Share**.
+
+## Part 3: Test, then switch on
+
+1. **Project → utility-bills → Stop**, then edit the YAML: set `MODE: "once"`, keep
+   `DRY_RUN: "true"` → **Save** → **Build**.
+2. In the **Log**, check the lines that say what it *would* add.
+3. If they look right: edit the YAML again, `MODE: "sync"` and `DRY_RUN: "false"` → **Build**.
+   It syncs immediately, then every day at 7 am.
+
+### Updating
+When the code changes, GitHub rebuilds the image. Container Manager:
+**Project → utility-bills → Action → Build** (Stop first if Build is greyed out).
+Your settings and the `data` folder are kept.

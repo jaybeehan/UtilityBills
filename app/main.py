@@ -68,11 +68,21 @@ def sync_forever():
         time.sleep((nxt - now).total_seconds())
 
 
+def idle(message: str):
+    """Stay running after a one-off job so the container doesn't restart and repeat it."""
+    log.info(message)
+    while True:
+        time.sleep(3600)
+
+
 if __name__ == "__main__":
     mode = os.getenv("MODE", "sync")
     if mode == "capture":
         capture()
+        idle("CAPTURE FINISHED. Files are in the data/capture folder. "
+             "Stop this project in Container Manager now.")
     elif mode == "once":
         sync_once()
+        idle("ONE-TIME SYNC FINISHED. Stop this project in Container Manager now.")
     else:
         sync_forever()
