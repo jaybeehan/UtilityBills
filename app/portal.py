@@ -60,7 +60,9 @@ class Portal:
             viewport={"width": 1366, "height": 900},
             user_agent=("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                         "(KHTML, like Gecko) Chrome/129.0 Safari/537.36"),
-            locale="en-CA", timezone_id="America/Edmonton", accept_downloads=True)
+            locale="en-CA",
+            # America/Regina = Alberta time (UTC-6 year-round); the bundled Chromium predates Alberta's change
+            timezone_id="America/Regina", accept_downloads=True)
         return browser, ctx, ctx.new_page()
 
     @staticmethod
