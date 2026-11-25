@@ -5,9 +5,14 @@ Transactions tab triggers UbGetTransactions, which lists every bill line
 (TranSrcCode "BIL") and payment ("APP"). A month's bill is the sum of its BIL
 lines, dated the last day of the month, which is what the sheet records.
 
-Usage (m3) isn't listed directly. The wastewater treatment charge is billed per
-cubic metre, so usage = that charge / SEWER_RATE ($3.00 in 2026, which matches
-every month already in the sheet). If the city changes the rate, set SEWER_RATE.
+Usage (m3) comes from the meter readings: on the My Account Info tab, clicking
+the "Water Consumption" service row (table vdmUbServicesInfoTbl) fills table
+vdmUbEnterMeterTbl with the last ~6 reads: date, reading, consumption ("17.44 CM").
+Each read date is the bill date, so consumption is matched to the bill by date.
+
+For older months not in that table, usage falls back to the wastewater treatment
+charge / SEWER_RATE (billed per m3; $3.00 in 2026). When both are available and
+they disagree, the log warns, which usually means the sewer rate changed.
 """
 from __future__ import annotations
 
@@ -52,6 +57,12 @@ class LacombePortal(Portal):
         page.goto(self.billing_url, wait_until="domcontentloaded", timeout=60_000)
         self._settle(page)
 
+        try:
+            meter = self._read_meter(page)
+        except Exception as e:
+            log.warning("lacombe: couldn't read meter readings (%s); using sewer charge instead", e)
+            meter = {}
+
         tab = page.locator(NAV_SEL).filter(has_text=re.compile(r"^\s*Transactions\s*$"))
         with page.expect_response(lambda r: "UbGetTransactions" in r.url, timeout=45_000) as resp:
             for i in range(tab.count()):
@@ -62,8 +73,49 @@ class LacombePortal(Portal):
                 raise RuntimeError("lacombe: Transactions tab not found on Utility Billing page")
         lines = json.loads(resp.value.text())["d"]
         bills = parse_transactions(lines, rate)
-        log.info("lacombe: %d water bills from %d transaction lines", len(bills), len(lines))
+        for b in bills:
+            m3 = meter.get(b.bill_date)
+            if m3 is None:
+                continue
+            if b.usage is not None and abs(b.usage - m3) > 0.05:
+                log.warning("lacombe: %s meter says %.2f m3 but sewer charge / %.2f gives %.2f; "
+                            "the sewer rate may have changed (SEWER_RATE)", b.bill_date, m3, rate, b.usage)
+            b.usage = m3
+        log.info("lacombe: %d water bills from %d transaction lines, %d with meter readings",
+                 len(bills), len(lines), sum(b.bill_date in meter for b in bills))
         return {"water": bills}
+
+    def _read_meter(self, page: Page) -> dict:
+        """Click the Water Consumption service row and read the meter-reading table."""
+        row = page.locator("#vdmUbServicesInfoTbl tbody tr").filter(has_text="Water Consumption").first
+        row.wait_for(state="visible", timeout=30_000)
+        row.click()
+        page.locator("#vdmUbEnterMeterTbl tbody tr td").first.wait_for(state="visible", timeout=30_000)
+        page.wait_for_timeout(1000)
+        rows = page.eval_on_selector_all(
+            "#vdmUbEnterMeterTbl tbody tr",
+            "trs => trs.map(tr => [...tr.querySelectorAll('td')].map(td => td.innerText.trim()))")
+        readings = parse_meter_rows(rows)
+        log.info("lacombe: %d meter readings (%s)", len(readings),
+                 ", ".join(f"{d:%b %d} {v} m3" for d, v in sorted(readings.items())))
+        try:   # back to the services list so the tabs are in their normal state
+            page.locator("text=Back To List").first.click(timeout=5000)
+        except Exception:
+            pass
+        return readings
+
+
+def parse_meter_rows(rows: list[list[str]]) -> dict:
+    """Rows look like ['10/31/2026', 'N', '2098.03', '17.44 CM', '31', "'"]."""
+    out = {}
+    for cells in rows:
+        if len(cells) < 4:
+            continue
+        m = re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", cells[0])
+        c = re.match(r"\s*(-?[\d.]+)", cells[3])
+        if m and c:
+            out[datetime(int(m[3]), int(m[1]), int(m[2])).date()] = float(c[1])
+    return out
 
 
 def parse_transactions(lines: list[dict], rate: float) -> list[Bill]:

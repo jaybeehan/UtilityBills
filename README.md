@@ -17,9 +17,10 @@ and the summary formulas in E:I stay put. A bill already in the sheet is matched
 | Portal logins | Both working |
 | Bill readers | Done: Echo reads the Monthly Invoices table on the Electricity and Gas tabs; Lacombe reads the Transactions list |
 
-**Water usage:** Lacombe doesn't list m³ directly. The wastewater treatment charge is billed per m³,
-so usage = that charge ÷ `SEWER_RATE` ($3.00 in 2026, matching every month in the sheet).
-If the city changes the rate (usually in January), update `SEWER_RATE` in the project settings.
+**Water usage:** read straight from the meter readings on Lacombe's site (My Account Info → click
+Water Consumption). That table only shows the last ~6 months, so older months fall back to the
+wastewater treatment charge ÷ `SEWER_RATE` ($3.00/m³ in 2026). If the two ever disagree, the log
+shows a warning, which usually means the city changed the sewer rate.
 
 ---
 
